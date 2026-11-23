@@ -531,10 +531,12 @@
     }
     if (!signedIn()) {
       return `<div class="card"><h2>Sign in</h2>
-        <p class="small muted" style="margin-top:0">Use the same email & password on your phone and on the website — your accounts, entries and FDs will be the same everywhere. The app keeps working offline and syncs when you are back online.</p>
+        <p class="small" style="margin-top:0"><b>First time?</b> Enter your email and a new password, then tap <b>Create account</b>. After that, use <b>Sign in</b> on every device.</p>
+        <p class="small muted">Use the same email & password on your phone and on the website — your accounts, entries and FDs will be the same everywhere. The app keeps working offline and syncs when you are back online.</p>
         <div class="form">
-          <div class="field"><label>Email</label><input id="cl-email" type="email" autocomplete="username" inputmode="email"></div>
-          <div class="field"><label>Password</label><input id="cl-pass" type="password" autocomplete="current-password" placeholder="At least 6 characters"></div>
+          <div class="field"><label>Email</label><input id="cl-email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+          <div class="field"><label>Password</label><input id="cl-pass" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="At least 6 characters">
+          <label class="small muted" style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="checkbox" onclick="document.getElementById('cl-pass').type=this.checked?'text':'password'" style="width:auto"> Show password</label></div>
           <div class="form-actions"><button class="btn primary" data-act="cl-signin">Sign in</button><button class="btn" data-act="cl-signup">Create account</button></div>
           <div class="field"><button class="link" data-act="cl-reset" style="align-self:flex-start">Forgot password?</button></div>
         </div></div>

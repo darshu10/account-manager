@@ -42,7 +42,7 @@ window.Cloud = (() => {
 
   const friendly = (e) => {
     const map = {
-      'auth/invalid-credential': 'Wrong email or password.', 'auth/wrong-password': 'Wrong email or password.', 'auth/user-not-found': 'No account with this email.',
+      'auth/invalid-credential': 'Wrong email or password.\n\nNew here? Tap “Create account” instead of “Sign in”.\nForgot your password? Tap “Forgot password?” to get a reset link by email.', 'auth/wrong-password': 'Wrong email or password.', 'auth/user-not-found': 'No account with this email yet. Tap “Create account”.',
       'auth/email-already-in-use': 'An account with this email already exists — sign in instead.', 'auth/weak-password': 'Password must be at least 6 characters.',
       'auth/invalid-email': 'Enter a valid email address.', 'auth/missing-password': 'Enter your password.', 'auth/network-request-failed': 'No internet connection.',
       'auth/too-many-requests': 'Too many attempts. Try again in a few minutes.',

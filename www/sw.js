@@ -1,5 +1,5 @@
 // Offline cache for the website version. Bump VERSION when files change.
-const VERSION = 'am-v8';
+const VERSION = 'am-v9';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'cloud.js', 'firebase-config.js', 'vendor/firebase-app-compat.js', 'vendor/firebase-auth-compat.js', 'vendor/firebase-firestore-compat.js', 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
