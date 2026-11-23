@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Each signed-in user can read/write ONLY their own data.
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // SMS inbox: the phone (iPhone Shortcut / Android automation) can only DROP a message
+    // into an inbox whose long secret token it knows. Only the owner (whose profile holds
+    // that token) can read or delete the messages.
+    match /inbox/{token}/items/{item} {
+      allow create: if token.size() >= 24
+        && request.resource.data.keys().hasOnly(['text', 'src', 'at'])
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 3000;
+      allow read, delete: if request.auth != null
+        && get(/databases/$(database)/documents/inboxOwners/$(token)).data.uid == request.auth.uid;
+    }
+    // Each inbox token is claimed once by its owner and can never be taken over.
+    match /inboxOwners/{token} {
+      allow create: if request.auth != null && token.size() >= 24
+        && request.resource.data.keys().hasOnly(['uid']) && request.resource.data.uid == request.auth.uid;
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+  }
+}

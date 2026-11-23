@@ -1,0 +1,6 @@
+{
+  "appId": "com.personal.accountmanager",
+  "appName": "Account Manager",
+  "webDir": "www",
+  "android": { "backgroundColor": "#f4f6f8" }
+}
