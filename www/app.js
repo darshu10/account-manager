@@ -2281,23 +2281,30 @@
     if (!tok) return `<div class="card"><h2>Bank SMS → entries</h2><p class="small muted" style="margin-top:0">Your phone forwards each bank SMS to a private inbox in your cloud. The app reads the amount, account, merchant and date, guesses the category (and learns from your corrections), and you add each one with a tap.</p>
       <button class="btn primary block" data-act="sms-enable">Turn on SMS inbox</button></div>`;
     const url = Cloud.inboxUrl(tok);
-    const body = '{"fields":{"text":{"stringValue":"URL_ENCODED_TEXT"},"src":{"stringValue":"ios"}}}';
+    const body = '{"fields":{"text":{"stringValue":"<SMS text>"}}}';
     const n = pendingSms().length;
-    return `<div class="card"><div class="row"><div class="grow"><b>SMS inbox is on</b><div class="small muted">${n} message${n === 1 ? '' : 's'} waiting</div></div><button class="btn primary" data-act="open" data-kind="inbox">Review</button></div></div>
-      <div class="card"><h2>iPhone setup (one time, ~5 min)</h2>
-      <ol class="steps">
-        <li>Open the <b>Shortcuts</b> app → <b>Automation</b> tab → <b>+</b> → <b>Message</b>.</li>
-        <li><b>Message Contains:</b> type <code>Rs</code>. Choose <b>Run Immediately</b> (turn off “Notify When Run” if you like) → <b>Next</b> → <b>New Blank Automation</b>.</li>
-        <li>Add action <b>URL Encode</b>. Tap its input and choose <b>Shortcut Input</b>.</li>
-        <li>Add action <b>Text</b> and paste this, then replace <code>URL_ENCODED_TEXT</code> with the blue <b>URL Encoded Text</b> variable:
-          <div class="codebox">${esc(body)}</div><button class="mini-btn" data-act="copy" data-text="${esc(body)}">Copy text</button></li>
-        <li>Add action <b>Get Contents of URL</b>. Paste this URL:
-          <div class="codebox">${esc(url)}</div><button class="mini-btn" data-act="copy" data-text="${esc(url)}">Copy URL</button>
-          <br>Tap <b>Show More</b> → Method <b>POST</b> → Headers: add <code>Content-Type</code> = <code>application/json</code> → Request Body <b>File</b> → choose the <b>Text</b> variable.</li>
-        <li>Tap <b>Done</b>. Repeat steps 1–5 twice more with <code>INR</code> and <code>debited</code> instead of <code>Rs</code>, so every bank format is caught. (Duplicates are removed automatically.)</li>
+    return `<div class="card"><div class="row"><div class="grow"><b>SMS inbox is on</b><div class="small muted">${n} message${n === 1 ? '' : 's'} waiting</div></div><button class="btn primary" data-act="open" data-kind="inbox">Review</button></div>
+      <div class="btn-row" style="margin-top:10px"><button class="btn" data-act="sms-test">Send a test message</button></div></div>
+      <div class="card"><h2>iPhone setup: one time, about 3 minutes</h2>
+      <p class="small"><b>Step 1.</b> Copy your private link:</p>
+      <button class="btn primary block" data-act="copy" data-text="${esc(url)}">📋 Copy my link</button>
+      <ol class="steps" start="2" style="margin-top:14px">
+        <li>Open the <b>Shortcuts</b> app (the pink-blue icon, already on your iPhone). Tap <b>Automation</b> at the bottom.</li>
+        <li>Tap <b>+</b> (top right; or <b>New Automation</b>). Scroll down and tap <b>Message</b>.</li>
+        <li>Tap <b>Message Contains</b>, type <code>Rs</code>. Then select <b>Run Immediately</b> and tap <b>Next</b>.</li>
+        <li>Tap <b>New Blank Automation</b> → <b>Add Action</b>. In the search box type <code>Get Contents of URL</code> and tap it.</li>
+        <li>Tap the blue word <b>URL</b> → <b>Paste</b> (your link from step 1).</li>
+        <li>Tap the small arrow <b>›</b> next to it to show more options.<br>• <b>Method</b>: change GET to <b>POST</b>.<br>• <b>Request Body</b>: leave it on <b>JSON</b>.</li>
+        <li>Under Request Body tap <b>Add new field</b> → <b>Dictionary</b>. Key: type <code>fields</code>.</li>
+        <li>Tap that new <b>fields</b> row to open it → <b>Add new field</b> → <b>Dictionary</b>. Key: <code>text</code>.</li>
+        <li>Tap the <b>text</b> row to open it → <b>Add new field</b> → <b>Text</b>. Key: <code>stringValue</code>.<br>For its value, tap the empty box, then tap <b>Shortcut Input</b> in the bar just above the keyboard (it turns into a blue bubble).</li>
+        <li>Tap <b>Done</b> (top right). That's it!</li>
       </ol>
-      <div class="btn-row"><button class="btn" data-act="sms-test">Send a test message</button></div>
-      <p class="small muted">Android: the same URL works with MacroDroid or Tasker (“SMS received” → HTTP POST with the body above).</p></div>
+      <p class="small muted">Optional: repeat steps 3–11 with <code>INR</code> and then <code>debited</code> instead of <code>Rs</code>, to catch every bank's format. Duplicates are removed automatically.</p>
+      <p class="small muted">What it sends: <code>${esc(body)}</code></p>
+      <p class="small muted">Android: the same link works with MacroDroid / Tasker (“SMS received” → HTTP POST with that JSON).</p></div>
+      <div class="card"><h2>Too fiddly? Use copy & paste</h2><p class="small muted" style="margin-top:0">In Messages, long-press a bank SMS → <b>Copy</b>, then paste it in the SMS inbox. You can paste several at once.</p>
+        <button class="btn block" data-act="open" data-kind="inbox">Open SMS inbox</button></div>
       <div class="card"><h2>Privacy</h2><p class="small muted" style="margin-top:0">The link contains a long secret code. Anyone with the link could only <i>drop</i> messages into your inbox. Nobody can read your inbox or data without your login. Messages are deleted once you add or ignore them.</p>
       <button class="btn danger block" data-act="sms-reset">Reset link (stops the old Shortcut)</button></div>`;
   }
