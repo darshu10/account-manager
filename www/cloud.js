@@ -19,7 +19,7 @@ window.Cloud = (() => {
     : v && typeof v === 'object' ? '{' + Object.keys(v).sort().filter((k) => v[k] !== undefined).map((k) => JSON.stringify(k) + ':' + stable(v[k])).join(',') + '}'
       : JSON.stringify(v === undefined ? null : v);
   const profileOf = (S) => ({
-    settings: { name: S.settings.name || '', currency: S.settings.currency || 'INR', inboxToken: S.settings.inboxToken || '' },
+    settings: { name: S.settings.name || '', currency: S.settings.currency || 'INR', inboxToken: S.settings.inboxToken || '', biz: S.settings.biz || {} },
     categories: S.categories, budgets: S.budgets || {}, emergency: S.emergency || {}, smsLearn: S.smsLearn || {},
   });
   const profileFromDoc = (d, S) => ({ settings: d.settings || {}, categories: d.categories || S.categories, budgets: d.budgets || {}, emergency: d.emergency || {}, smsLearn: d.smsLearn || {} });

@@ -208,7 +208,7 @@
     const amt = isX ? money(t.amount) : isIn ? money(t.amount, 'pos') : money(-num(t.amount), 'neg');
     return `<button class="item" data-act="edit-txn" data-id="${t.id}">
       <div class="avatar ${t.type}">${icon}</div>
-      <div class="grow"><div class="title ellipsis">${title}${t.recurringId ? ' <span title="Recurring">🔁</span>' : ''}${t.receiptId ? ' <span title="Receipt attached">📎</span>' : ''}${t.fromSms ? ' <span title="Added from SMS">📩</span>' : ''}</div>${sub ? `<div class="sub ellipsis">${sub}</div>` : ''}${note}</div>
+      <div class="grow"><div class="title ellipsis">${title}${t.recurringId ? ' <span title="Recurring">🔁</span>' : ''}${t.receiptId ? ' <span title="Receipt attached">📎</span>' : ''}${t.fromSms ? ' <span title="Added from SMS">📩</span>' : ''}${t.biz ? ' <span title="From your website">💼</span>' : ''}</div>${sub ? `<div class="sub ellipsis">${sub}</div>` : ''}${note}</div>
       <div class="right"><b>${isIn ? '+' : ''}${amt}</b></div></button>`;
   }
 
@@ -452,6 +452,7 @@
     const sections = [
       ['Everyday', [
         ['bills', '🧾', 'Bills & subscriptions', dueBills ? `${dueBills} due this week` : `${S.bills.length} bill${S.bills.length === 1 ? '' : 's'} · electricity, mobile, OTT…`],
+        ['biz', '💼', 'Business income', bizCfg().accountId ? `${bizCfg().name} → ${accName(bizCfg().accountId)}` : 'Auto-add Remedy Ideas payments'],
         ['sms', '📩', 'SMS auto-add', S.settings.inboxToken ? 'On · review bank SMS' : 'Turn bank SMS into entries'],
         ['recurring', '🔁', 'Recurring entries', `${S.recurring.length} rule${S.recurring.length === 1 ? '' : 's'} · salary, rent, SIP…`],
         ['budgets', '🎯', 'Budgets', 'Monthly spending limits'],
@@ -469,7 +470,7 @@
       ]],
     ];
     return sections.map(([title, items]) => `<div class="section-title">${title}</div><div class="list">${items.map(([k, i, t, sub]) => `<button class="item" data-act="open" data-kind="${k}"><div class="avatar">${i}</div><div class="grow"><div class="title">${t}</div><div class="sub ellipsis">${esc(sub)}</div></div>${ICON.chev}</button>`).join('')}</div>`).join('')
-      + `<p class="muted small" style="text-align:center">Account Manager v1.6 · works offline${signedIn() ? ' · synced to your cloud account' : ' · data stored on this device'}</p>`;
+      + `<p class="muted small" style="text-align:center">Account Manager v1.7 · works offline${signedIn() ? ' · synced to your cloud account' : ' · data stored on this device'}</p>`;
   }
 
   function viewAssets() {
@@ -571,6 +572,7 @@
   const SUBS = {
     account: { title: () => 'Account', view: (s) => viewAccount(s.id), fab: true },
     cloud: { title: () => 'Cloud Sync', view: viewCloud },
+    biz: { title: () => 'Business income', view: viewBiz },
     ppf: { title: () => 'PPF Account', view: (s) => viewPpfDetail(s.id), fab: true },
     recurring: { title: () => 'Recurring entries', view: viewRecurring },
     policy: { title: () => 'Insurance policy', view: (x) => viewPolicy(x.id) },
@@ -2161,7 +2163,44 @@
   const merchantKey = (m) => String(m || '').toLowerCase().replace(/[^a-z]/g, '').slice(0, 24);
   const MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
 
+  // ---------- Business income (e.g. Remedy Ideas website) ----------
+  // The website drops "AMPAY:{json}" notes into the same private inbox the SMS feature uses.
+  const BIZ_DEFAULT = { accountId: '', category: 'Business Income', auto: true, feePct: 0, name: 'Remedy Ideas' };
+  const bizCfg = () => ({ ...BIZ_DEFAULT, ...(S.settings.biz || {}) });
+  const bizTxnId = (id) => 'biz_' + String(id || '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 60);
+  function parseBizPayment(text) {
+    let d; try { d = JSON.parse(String(text).slice(6)); } catch { return null; }
+    if (!d || !(num(d.amount) > 0)) return null;
+    const c = bizCfg();
+    const when = d.at ? new Date(d.at) : new Date();
+    const date = isNaN(when) ? iso() : iso(when);
+    const acc = S.accounts.find((a) => a.id === c.accountId && !a.archived);
+    const via = String(d.via || '');
+    return {
+      amount: Math.round(num(d.amount) * 100) / 100, type: 'income', accountId: acc ? acc.id : '', toAccountId: '',
+      mode: /upi/i.test(via) ? 'upi' : '', category: c.category || 'Business Income',
+      note: [c.name || d.src, d.title, d.ref, d.name].filter(Boolean).join(' · '), date,
+      raw: `${c.name}: ${d.title || 'payment'}${d.ref ? ' ' + d.ref : ''}${d.name ? ' · ' + d.name : ''} — ${fmt(d.amount)}${via ? ' via ' + via : ''}`,
+      biz: true, bizId: String(d.id || d.ref || ''), via, test: !!d.test, duplicate: S.transactions.some((t) => t.id === bizTxnId(d.id || d.ref)),
+    };
+  }
+  function autoAddBiz() {
+    const c = bizCfg();
+    const list = pendingSms().filter((x) => x.p && x.p.biz);
+    if (!list.length) return;
+    let n = 0, total = 0, tested = false;
+    list.forEach((x) => {
+      if (x.p.test) { tested = true; dropSms(x); return; }
+      if (x.p.duplicate) { dropSms(x); return; }
+      if (!c.auto || !x.p.accountId) return; // left in the inbox for review
+      addFromSms(x); n++; total += x.p.amount;
+    });
+    if (n) { save(); toast(`💼 ${n} ${c.name} payment${n > 1 ? 's' : ''} added · ${fmt(total)}`); }
+    else if (tested) toast(`✅ ${c.name} connection works — test payment received`);
+  }
+
   function parseSms(raw, receivedISO) {
+    if (/^AMPAY:/.test(String(raw || ''))) return parseBizPayment(raw);
     let text = String(raw || '');
     if (/%[0-9A-Fa-f]{2}/.test(text)) { try { text = decodeURIComponent(text.replace(/\+/g, ' ')); } catch {} }
     const t = text.replace(/\s+/g, ' ').trim();
@@ -2228,7 +2267,7 @@
   // Inbox items come from the cloud (iPhone Shortcut / Android automation) or from pasting.
   let inboxItems = [];
   const handledInbox = new Set();
-  function setInboxItems(items) { inboxItems = items.filter((x) => !handledInbox.has(x.id)); scheduleRender(); }
+  function setInboxItems(items) { inboxItems = items.filter((x) => !handledInbox.has(x.id)); autoAddBiz(); scheduleRender(); }
   function pendingSms() {
     const all = [...inboxItems.map((x) => ({ ...x, src: 'cloud' })), ...(st.pasted || [])];
     const seen = new Set();
@@ -2249,7 +2288,15 @@
   }
   function addFromSms(item) {
     const p = item.p;
-    S.transactions.push({ id: uid(), type: p.type, amount: p.amount, accountId: p.accountId, toAccountId: p.toAccountId || '', category: p.category, mode: p.mode, note: p.note, date: p.date, created: new Date().toISOString(), fromSms: true });
+    const id = p.biz ? bizTxnId(p.bizId) : uid();
+    if (!S.transactions.some((t) => t.id === id)) {
+      S.transactions.push({ id, type: p.type, amount: p.amount, accountId: p.accountId, toAccountId: p.toAccountId || '', category: p.category, mode: p.mode, note: p.note, date: p.date, created: new Date().toISOString(), ...(p.biz ? { biz: true } : { fromSms: true }) });
+      const fee = p.biz && /razorpay/i.test(p.via || '') ? Math.round(p.amount * num(bizCfg().feePct)) / 100 : 0; // gateway fee only on Razorpay payments
+      if (fee > 0) {
+        ensureCat('expense', 'Bank Charges');
+        S.transactions.push({ id: id + '_fee', type: 'expense', amount: fee, accountId: p.accountId, toAccountId: '', category: 'Bank Charges', mode: '', note: `${bizCfg().name} payment gateway fee · ${p.bizId}`, date: p.date, created: new Date().toISOString(), biz: true });
+      }
+    }
     if (p.category && p.type !== 'transfer' && !S.categories[p.type].includes(p.category)) S.categories[p.type].push(p.category);
     learnCategory(p, p.category);
     dropSms(item);
@@ -2307,6 +2354,42 @@
         <button class="btn block" data-act="open" data-kind="inbox">Open SMS inbox</button></div>
       <div class="card"><h2>Privacy</h2><p class="small muted" style="margin-top:0">The link contains a long secret code. Anyone with the link could only <i>drop</i> messages into your inbox. Nobody can read your inbox or data without your login. Messages are deleted once you add or ignore them.</p>
       <button class="btn danger block" data-act="sms-reset">Reset link (stops the old Shortcut)</button></div>`;
+  }
+  function viewBiz() {
+    const c = bizCfg();
+    if (!signedIn()) return `<div class="card"><p>This needs <b>Cloud Sync</b>: your website sends each payment to your private cloud inbox.</p><button class="btn primary block" data-act="open" data-kind="cloud">Sign in to Cloud Sync</button></div>`;
+    const tok = S.settings.inboxToken;
+    const list = S.transactions.filter((t) => t.biz && t.type === 'income').sort((a, b) => (b.date + (b.created || '')).localeCompare(a.date + (a.created || '')));
+    const m = iso().slice(0, 7), fy = fyOf(new Date()), fyS = iso(new Date(fy, 3, 1));
+    const mon = list.filter((t) => t.date.slice(0, 7) === m), fyl = list.filter((t) => t.date >= fyS);
+    const accs = S.accounts.filter((a) => !a.archived);
+    const waiting = pendingSms().filter((x) => x.p && x.p.biz && !x.p.test).length;
+    let html = `<div class="card hero"><div class="label">💼 ${esc(c.name)} income this month</div><div class="big amt">${esc(fmt(sum(mon)))}</div>
+      <div class="split"><div><small>Payments this month</small><b>${mon.length}</b></div><div><small>${fyLabel(fy)}</small><b class="amt">${esc(fmt(sum(fyl)))}</b></div></div></div>`;
+    if (waiting) html += `<div class="notice">⏳ <div class="grow">${waiting} payment${waiting > 1 ? 's' : ''} waiting${c.accountId ? '' : ' — choose the account below'}.</div><button class="link" data-act="open" data-kind="inbox">Review</button></div>`;
+    html += `<div class="card"><h2>Settings</h2><div class="form">
+      <div class="field"><label>Business name</label><input id="biz-name" value="${esc(c.name)}"></div>
+      <div class="field"><label>Add payments to account</label><select id="biz-acc"><option value="">— choose —</option>${accs.map((a) => `<option value="${a.id}" ${a.id === c.accountId ? 'selected' : ''}>${esc(accIcon(a) + ' ' + a.name)}</option>`).join('')}</select>
+        <div class="help">Usually the bank account where Razorpay / UPI money arrives.</div></div>
+      <div class="field half"><label>Category</label><input id="biz-cat" value="${esc(c.category)}"></div>
+      <div class="field half"><label>Gateway fee %</label><input id="biz-fee" type="number" inputmode="decimal" step="any" value="${c.feePct || ''}" placeholder="0"><div class="help">e.g. 2.36 for Razorpay (2% + GST). Adds a fee expense for Razorpay payments only.</div></div>
+      <label class="field check"><input type="checkbox" id="biz-auto" ${c.auto ? 'checked' : ''}><span>Add payments automatically (untick to review each one first)</span></label>
+      <div class="form-actions"><button class="btn primary" data-act="biz-save">Save</button></div></div></div>`;
+    if (!tok) {
+      html += `<div class="card"><h2>Connect your website</h2><p class="small muted" style="margin-top:0">First create your private inbox link.</p><button class="btn primary block" data-act="sms-enable">Create my private link</button></div>`;
+    } else {
+      const url = Cloud.inboxUrl(tok);
+      html += `<div class="card"><h2>Connect your website (one time)</h2>
+        <ol class="steps">
+          <li><button class="btn primary" data-act="copy" data-text="${esc(url)}">📋 Copy my private link</button></li>
+          <li>Cloudflare dashboard → <b>Workers & Pages</b> → <b>remedyideas</b> → <b>Settings</b> → <b>Variables and Secrets</b> → <b>Add</b>.<br>Type <b>Secret</b> · Name <code>AM_INBOX_URL</code> · Value: paste the link → <b>Save</b>.</li>
+          <li>Publish the website once more (<code>node tools/publish.mjs</code>) so it picks up the secret.</li>
+        </ol>
+        <div class="btn-row"><button class="btn" data-act="biz-test">Test the link</button></div>
+        <p class="small muted">The website sends only order number, product, amount, date and customer name. Test payments are skipped. Every payment is added once, even if two devices are open.</p></div>`;
+    }
+    html += `<div class="section-title">Recent ${esc(c.name)} payments</div>` + (list.length ? `<div class="list">${list.slice(0, 15).map((t) => txnRow(t)).join('')}</div>` : '<div class="list"><div class="empty"><div class="em">💼</div>Payments appear here automatically once the website is connected.</div></div>');
+    return html;
   }
   function newInboxToken() {
     const a = new Uint8Array(24); crypto.getRandomValues(a);
@@ -3229,7 +3312,21 @@
       } catch (e) { if (win) win.close(); alert('Could not create PDF: ' + e.message); }
     },
     'sms-enable': () => enableInbox(),
-    'sms-reset': () => { if (confirm('Create a new link? You must update the URL in your Shortcut afterwards.')) enableInbox(); },
+    'biz-save': () => {
+      const fee = num($('#biz-fee').value);
+      S.settings.biz = { name: $('#biz-name').value.trim() || 'Remedy Ideas', accountId: $('#biz-acc').value, category: $('#biz-cat').value.trim() || 'Business Income', auto: $('#biz-auto').checked, feePct: fee > 0 && fee < 20 ? fee : 0 };
+      ensureCat('income', S.settings.biz.category);
+      save(); autoAddBiz(); render(); toast('Saved');
+    },
+    'biz-test': async () => {
+      try {
+        const payload = { v: 1, src: 'test', id: 'TEST-' + Date.now(), amount: 1, title: 'Connection test', test: true, at: new Date().toISOString() };
+        const r = await fetch(Cloud.inboxUrl(S.settings.inboxToken), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { text: { stringValue: 'AMPAY:' + JSON.stringify(payload) }, src: { stringValue: 'test' } } }) });
+        if (!r.ok) throw new Error((await r.text()).slice(0, 160));
+        toast('Test sent — waiting for it to arrive…');
+      } catch (e) { alert('Test failed: ' + e.message); }
+    },
+    'sms-reset': () => { if (confirm('Create a new link? You must update it in your iPhone Shortcut AND in the website secret (AM_INBOX_URL) afterwards.')) enableInbox(); },
     'sms-test': async () => {
       try {
         const body = { fields: { text: { stringValue: encodeURIComponent(`Rs.1.00 debited from A/c XX0000 on ${new Date().toLocaleDateString('en-GB').replace(/\//g, '-')} to VPA test@upi (test message from Account Manager)`) }, src: { stringValue: 'test' } } };
